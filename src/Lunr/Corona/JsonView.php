@@ -10,6 +10,7 @@
 
 namespace Lunr\Corona;
 
+use JsonSchema\Validator;
 use Lunr\Core\Configuration;
 use stdClass;
 use Throwable;
@@ -21,15 +22,35 @@ class JsonView extends View
 {
 
     /**
+     * Shared instance of the JSON validator
+     * @var Validator
+     */
+    protected readonly Validator $json_validator;
+
+    /**
+     * The list of calls to check and what to check them against
+     * @var array
+     */
+    protected array $allowlist = [];
+
+    /**
      * Constructor.
      *
-     * @param Request       $request       Shared instance of the Request class
-     * @param Response      $response      Shared instance of the Response class
-     * @param Configuration $configuration Shared instance of the Configuration class
+     * @param Request        $request       Shared instance of the Request class
+     * @param Response       $response      Shared instance of the Response class
+     * @param Configuration  $configuration Shared instance of the Configuration class
+     * @param Validator|null $locator       Shared instance of the Validator class
      */
-    public function __construct($request, $response, $configuration)
+    public function __construct($request, $response, $configuration, $validator = NULL)
     {
         parent::__construct($request, $response, $configuration);
+
+        if($validator !== NULL) {
+            $this->json_validator = $validator;
+
+            $this->configuration->load_file('validation');
+            $this->allowlist = $this->configuration['validation']['schemalist']->toArray();
+        }
     }
 
     /**
@@ -47,7 +68,7 @@ class JsonView extends View
      *
      * @return mixed $return Prepared response data
      */
-    protected function prepare_data($data)
+    protected function prepare_data($data): mixed
     {
         return $data;
     }
@@ -57,7 +78,7 @@ class JsonView extends View
      *
      * @return void
      */
-    public function print_page()
+    public function print_page(): void
     {
         $identifier = $this->response->get_return_code_identifiers(TRUE);
 
@@ -81,6 +102,11 @@ class JsonView extends View
         header('Content-type: application/json');
         http_response_code($code);
 
+        if(in_array($code, $this->configuration['validation']['http_codes']->toArray())) {
+            $this->get_json_validated($json);
+        }
+
+
         if ($this->request->sapi == 'cli')
         {
             echo json_encode($json, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) . "\n";
@@ -96,7 +122,7 @@ class JsonView extends View
      *
      * @return void
      */
-    public function print_fatal_error()
+    public function print_fatal_error(): void
     {
         $error = error_get_last();
 
@@ -133,7 +159,7 @@ class JsonView extends View
      *
      * @return void
      */
-    public function print_exception($e)
+    public function print_exception($e): void
     {
         $json = [];
 
@@ -162,6 +188,37 @@ class JsonView extends View
         }
     }
 
+
+    /**
+     * Check if the JSON needs to be validated and do so if needed.
+     *
+     * @param array $json the response data passed by reference
+     *
+     * @return void
+     */
+    private function get_json_validated(array &$json): void
+    {
+
+        $schema_name = $this->request->controller . '/' . $this->request->method;
+        if(!array_key_exists($schema_name, $this->allowlist))
+        {
+            return;
+        }
+
+        $schema_path = $this->request->application_path . str_replace($this->request->base_path, '', $this->statics($this->allowlist[$schema_name]));
+        if(!is_readable($schema_path)) {
+            $json['status']['json_message'] = 'JSON schema was not found, not validated';
+            return;
+        }
+
+        $this->json_validator->validate($data, (object)[ '$ref' => 'file://' . realpath($schema_path)]);
+
+        if (!$this->json_validator->isValid())
+        {
+            $json['status']['json_message'] = 'JSON failed to validate against the schema';
+            $json['status']['json_code']    = HttpCode::INTERNAL_SERVER_ERROR;
+        }
+    }
 }
 
 ?>

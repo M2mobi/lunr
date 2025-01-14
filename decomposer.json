@@ -50,5 +50,13 @@
             "prefix": "Psr\\Cache",
             "search-path": "/src/"
         }
+    },
+    "JsonSchema": {
+        "url": "https://github.com/jsonrainbow/json-schema.git",
+        "version": "6.0.0",
+        "psr4": {
+            "prefix": "JsonSchema",
+            "search-path": "/src/JsonSchema"
+        }
     }
 }
