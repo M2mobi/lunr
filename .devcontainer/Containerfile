@@ -1,0 +1,63 @@
+FROM php:8.3 as base
+ENV AUTOLOAD_VERSION 0.2.0
+
+RUN docker-php-ext-install mysqli
+
+RUN pecl install raphf \
+    && docker-php-ext-enable raphf
+
+RUN apt-get update
+
+RUN apt-get install -y libzip-dev unzip \
+    && docker-php-ext-install zip
+
+RUN apt-get install -y zlib1g-dev libcurl4-openssl-dev libssl-dev libicu-dev \
+    && pecl install pecl_http \
+    && docker-php-ext-enable http
+
+RUN apt-get install uuid-dev \
+    && pecl install uuid \
+    && docker-php-ext-enable uuid
+
+RUN curl -fsSL "https://github.com/pprkut/autoload-psr/releases/download/$AUTOLOAD_VERSION/autoload_psr-$AUTOLOAD_VERSION.tar.gz" -o autoload_psr.tar.gz \
+    && mkdir -p autoload_psr \
+    && tar -xf autoload_psr.tar.gz -C autoload_psr --strip-components=1 \
+    && rm autoload_psr.tar.gz \
+    && ( \
+        cd autoload_psr \
+        && phpize \
+        && ./configure \
+        && make -j "$(nproc)" \
+        && make install \
+    ) \
+    && rm -r autoload_psr \
+    && docker-php-ext-enable autoload_psr
+
+VOLUME /var/www/html
+VOLUME /var/www/libs
+
+RUN mv "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini"
+
+ENV WEBROOT /var/www/html
+ENV TARGET_DIR /var/www/libs
+
+WORKDIR /var/www/html
+
+FROM base AS dev
+
+RUN mv "$PHP_INI_DIR/php.ini-development" "$PHP_INI_DIR/php.ini"
+
+RUN pecl install xdebug \
+    && docker-php-ext-enable xdebug
+
+RUN pecl install uopz \
+    && docker-php-ext-enable uopz
+
+# dev tools separate install so we quickly change without rebuilding all php extensions
+RUN apt update && apt-get install -y --no-install-recommends \
+    sudo gnupg2 git ant jq mariadb-client \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install composer
+RUN curl -o /usr/local/bin/composer https://getcomposer.org/download/latest-stable/composer.phar \
+    && chmod +x /usr/local/bin/composer

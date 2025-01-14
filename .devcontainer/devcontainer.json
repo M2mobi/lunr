@@ -1,0 +1,23 @@
+{
+    "build": {
+		"dockerfile": "Containerfile"
+	},
+    "containerEnv": {
+		"XDEBUG_MODE": "debug"
+    },
+    "customizations": {
+		"vscode": {
+			"extensions": [
+				"felixfbecker.php-intellisense",
+				"octref.vetur"
+			],
+			"settings": {
+				"php.suggest.basic": false
+			}
+		}
+	},
+	"workspaceMount": "source=${localWorkspaceFolder},target=/var/www/html/dev.lunr,type=bind",
+	"workspaceFolder": "/var/www/html/dev.lunr",
+	"overrideCommand": true,
+	"postAttachCommand": "bash ./.devcontainer/setup.sh"
+}
