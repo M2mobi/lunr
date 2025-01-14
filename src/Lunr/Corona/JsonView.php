@@ -13,6 +13,7 @@ namespace Lunr\Corona;
 use Lunr\Core\Configuration;
 use stdClass;
 use Throwable;
+use Lunr\Corona\Exceptions\InternalServerErrorException;
 
 /**
  * View class for displaying JSON return values.
@@ -81,14 +82,22 @@ class JsonView extends View
         header('Content-type: application/json');
         http_response_code($code);
 
+        $return = NULL;
         if ($this->request->sapi == 'cli')
         {
-            echo json_encode($json, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) . "\n";
+            $return = json_encode($json, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) . "\n";
         }
         else
         {
-            echo json_encode($json, JSON_UNESCAPED_UNICODE);
+            $return = json_encode($json, JSON_UNESCAPED_UNICODE);
         }
+
+        if (json_last_error() !== JSON_ERROR_NONE)
+        {
+            throw new InternalServerErrorException('JSON encoding failed: ' . json_last_error_msg());
+        }
+
+        echo $return;
     }
 
     /**

@@ -136,6 +136,58 @@ class JsonViewPrintTest extends JsonViewTest
     }
 
     /**
+     * Test that print_page() prints JSON with an empty string as message if message is missing.
+     *
+     * @runInSeparateProcess
+     * @requires PHP 5.5.12
+     * @covers   \Lunr\Corona\JsonView::print_page
+     */
+    public function testPrintPageThrowsOnEncodingFailure()
+    {
+        $this->response->expects($this->once())
+                       ->method('get_return_code_identifiers')
+                       ->with($this->equalTo(TRUE))
+                       ->will($this->returnValue('id'));
+
+        $this->response->expects($this->once())
+                       ->method('get_error_info')
+                       ->with($this->equalTo('id'))
+                       ->will($this->returnValue(NULL));
+
+        $this->response->expects($this->once())
+                       ->method('get_error_message')
+                       ->with($this->equalTo('id'))
+                       ->will($this->returnValue(NULL));
+
+        $this->response->expects($this->once())
+                       ->method('get_return_code')
+                       ->with($this->equalTo('id'))
+                       ->will($this->returnValue(404));
+
+        $this->response->expects($this->once())
+                       ->method('get_response_data')
+                       ->will($this->returnValue($this->json));
+
+        $this->request->expects($this->once())
+                      ->method('__get')
+                      ->with($this->equalTo('sapi'))
+                      ->will($this->returnValue('cli'));
+
+        $this->expectException('Lunr\Corona\Exceptions\InternalServerErrorException');
+        $this->expectExceptionMessage('JSON encoding failed: some error occurred');
+
+        $this->mock_function('header', function() {});
+        $this->mock_function('json_last_error', function() { return 1; });
+        $this->mock_function('json_last_error_msg', function() { return 'some error occurred'; });
+
+        $this->class->print_page();
+
+        $this->unmock_function('json_last_error_msg');
+        $this->unmock_function('json_last_error');
+        $this->unmock_function('header');
+    }
+
+    /**
      * Test that print_page() prints JSON.
      *
      * @requires PHP 5.5.12
